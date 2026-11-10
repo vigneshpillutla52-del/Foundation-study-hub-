@@ -26,11 +26,28 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Extract Android project ZIP
+        run: |
+          ZIP_FILE="$(find . -type f -name '*.zip' -not -path './.git/*' -print -quit || true)"
+          if [ -n "$ZIP_FILE" ]; then
+            mkdir -p "$RUNNER_TEMP/android-project"
+            unzip -oq "$ZIP_FILE" -d "$RUNNER_TEMP/android-project"
+            echo "SEARCH_ROOT=$RUNNER_TEMP/android-project" >> "$GITHUB_ENV"
+          else
+            echo "SEARCH_ROOT=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          fi
+
       - name: Find Android project
         run: |
-          PROJECT_DIR=$(dirname "$(find . -name settings.gradle.kts -print -quit)")
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
-          echo "Project found at: $PROJECT_DIR"
+          SETTINGS_FILE="$(find "$SEARCH_ROOT" -type f \( -name settings.gradle.kts -o -name settings.gradle \) -not -path '*/.gradle/*' -print -quit)"
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "Could not find Android Gradle project."
+            exit 1
+          fi
+          PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "APK_PATH=$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_ENV"
+          echo "Found project: $PROJECT_DIR"
 
       - name: Build APK
         run: gradle -p "$PROJECT_DIR" assembleDebug
@@ -39,4 +56,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Foundation-Study-Hub-APK
-          path: '**/app/build/outputs/apk/debug/app-debug.apk'
+          path: ${{ env.APK_PATH }}
+
